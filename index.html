@@ -148,6 +148,12 @@ h2 { margin: 6px 0 2px; font-family: var(--display); font-weight: 400; font-size
 .q-area { fill: color-mix(in srgb, var(--accent) 20%, transparent); stroke: var(--accent); stroke-width: 2.5px; }
 .q-line { fill: none; stroke: var(--accent); stroke-width: 6px; opacity: .85; }
 .q-pt { fill: var(--accent); stroke: var(--surface); }
+.ok-area { fill: color-mix(in srgb, var(--s1) 22%, transparent); stroke: var(--s1); stroke-width: 2.5px; }
+.ok-line { fill: none; stroke: var(--s1); stroke-width: 6px; opacity: .85; }
+.ok-pt { fill: var(--s1); stroke: var(--surface); }
+.lab { font-family: var(--body); font-weight: 700; paint-order: stroke; stroke: var(--surface); stroke-linejoin: round; }
+.lab.ok { fill: var(--s1); }
+.lab.bad { fill: var(--s4); }
 
 /* Opciones de las preguntas "¿Qué hay aquí?" */
 #opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; flex: none; }
@@ -631,11 +637,40 @@ var MAPD = {"motorway":"M-7945 -6465l296 203 308 187 313 173 362 196 260 149 248
     view.w = Math.max(260, dx * 1.7, dy * 1.7 * rect.width / rect.height);
     clampView(); schedule();
   }
-  function showPlace(pl) {
-    var b = bounds(pl);
+  /* Encuadra uno o varios lugares. */
+  function showPlace() {
+    var pls = Array.prototype.slice.call(arguments), b = [Infinity, Infinity, -Infinity, -Infinity], pt = true;
+    pls.forEach(function (pl) {
+      var c = bounds(pl);
+      b[0] = Math.min(b[0], c[0]); b[1] = Math.min(b[1], c[1]); b[2] = Math.max(b[2], c[2]); b[3] = Math.max(b[3], c[3]);
+      if (pl.k !== "p") pt = false;
+    });
     view.cx = (b[0] + b[2]) / 2; view.cy = (b[1] + b[3]) / 2;
-    view.w = Math.max(pl.k === "p" ? 360 : 300, (b[2] - b[0]) * 1.8, (b[3] - b[1]) * 1.8 * rect.width / rect.height);
+    view.w = Math.max(pt && pls.length === 1 ? 360 : 300, (b[2] - b[0]) * 1.8, (b[3] - b[1]) * 1.8 * rect.width / rect.height);
     clampView(); schedule();
+  }
+  /* Punto de referencia de un lugar: el propio punto, el vértice de la calle más cercano a su centro o el centro del parque. */
+  function anchor(pl) {
+    var b = bounds(pl);
+    if (pl.k !== "c") return [b[4], b[5]];
+    if (!pl._an) {
+      var best = Infinity;
+      pl.l.forEach(function (f) {
+        for (var i = 0; i + 1 < f.length; i += 2) {
+          var x = f[i] / 10, y = f[i + 1] / 10, d = Math.hypot(x - b[4], y - b[5]);
+          if (d < best) { best = d; pl._an = [x, y]; }
+        }
+      });
+    }
+    return pl._an;
+  }
+  function apart(a, b) { var p = anchor(a), q = anchor(b); return Math.hypot(p[0] - q[0], p[1] - q[1]) * 10; }
+  /* Lugar elegido en una pregunta "name" fallada, o null. */
+  function wrongPick(i) {
+    var g = guesses[i];
+    if (mode[i] !== "name" || !g || g.pick === day[i].n) return null;
+    for (var k = 0; k < PLACES.length; k++) if (PLACES[k].n === g.pick && PLACES[k].k === day[i].k) return PLACES[k];
+    return null;
   }
 
   /* ---------- Mapa base (se dibuja una sola vez) ---------- */
@@ -679,6 +714,20 @@ var MAPD = {"motorway":"M-7945 -6465l296 203 308 187 313 173 362 196 260 149 248
   var raf = 0;
   function schedule() { if (!raf) raf = requestAnimationFrame(function () { raf = 0; render(); }); }
 
+  /* Dibujo de un lugar en las preguntas "name": q = pregunta, ok = correcto, bad = opción fallada. */
+  function mark(pl, cls) {
+    if (pl.k === "p") {
+      var c = proj(pl.lat, pl.lon);
+      return '<circle class="' + (cls === "bad" ? "tgt" : cls + "-pt") + '" stroke-width="' + px(3) + '" cx="' + c[0] + '" cy="' + c[1] + '" r="' + px(11) + '"/>' +
+        '<circle class="tgt2" cx="' + c[0] + '" cy="' + c[1] + '" r="' + px(3.5) + '"/>';
+    }
+    var shape = cls === "bad" ? (pl.a ? "hl-area" : "hl-line") : cls + "-" + (pl.a ? "area" : "line");
+    return '<g transform="scale(0.1)"><path class="' + shape + '" d="' + shapePath(pl) + '"/></g>';
+  }
+  function label(text, at, cls) {
+    return '<text class="lab ' + cls + '" stroke-width="' + px(4) + '" font-size="' + px(14) + '" text-anchor="middle" x="' + at[0] + '" y="' + (at[1] - px(18)) + '">' + esc(text) + '</text>';
+  }
+
   function render() {
     var h = vh(), x = view.cx - view.w / 2, y = view.cy - h / 2;
     svg.setAttribute("viewBox", x.toFixed(2) + " " + y.toFixed(2) + " " + view.w.toFixed(2) + " " + h.toFixed(2));
@@ -687,12 +736,17 @@ var MAPD = {"motorway":"M-7945 -6465l296 203 308 187 313 173 362 196 260 149 248
 
     var cur = guesses.length - 1, q = curIndex();
     if (phase !== "end" && mode[q] === "name") {
-      var pl = day[q];
-      if (pl.k === "p") {
-        var c = proj(pl.lat, pl.lon);
-        s += '<circle class="q-pt" stroke-width="' + px(3) + '" cx="' + c[0] + '" cy="' + c[1] + '" r="' + px(11) + '"/>';
-        s += '<circle class="tgt2" cx="' + c[0] + '" cy="' + c[1] + '" r="' + px(3.5) + '"/>';
-      } else s += '<g transform="scale(0.1)"><path class="' + (pl.a ? "q-area" : "q-line") + '" d="' + shapePath(pl) + '"/></g>';
+      var pl = day[q], wrong = wrongPick(q);
+      if (phase === "guess") s += mark(pl, "q");
+      else if (!wrong) s += mark(pl, "ok");
+      else {
+        /* Respuesta fallada: la opción elegida en rojo, la correcta en verde y la distancia entre ambas. */
+        var A = anchor(pl), B = anchor(wrong);
+        s += mark(wrong, "bad") + mark(pl, "ok");
+        s += '<line class="link" stroke-width="' + px(2) + '" stroke-dasharray="' + px(6) + ' ' + px(5) + '" x1="' + B[0] + '" y1="' + B[1] + '" x2="' + A[0] + '" y2="' + A[1] + '"/>';
+        s += '<text class="dist" stroke-width="' + px(4) + '" font-size="' + px(13) + '" text-anchor="middle" x="' + ((A[0] + B[0]) / 2) + '" y="' + ((A[1] + B[1]) / 2 - px(10)) + '">' + fmt(apart(pl, wrong)) + '</text>';
+        s += label(wrong.n, B, "bad") + label(pl.n, A, "ok");
+      }
     } else if (phase === "reveal" && cur >= 0) {
       var g = proj(guesses[cur].lat, guesses[cur].lon), r = locate(day[cur], guesses[cur]), t = [r.x, r.y], d = r.d;
       if (day[cur].k !== "p") s += '<g transform="scale(0.1)"><path class="' + (day[cur].a ? "hl-area" : "hl-line") + '" d="' + shapePath(day[cur]) + '"/></g>';
@@ -723,7 +777,10 @@ var MAPD = {"motorway":"M-7945 -6465l296 203 308 187 313 173 362 196 260 149 248
     var i = curIndex(), isName = mode[i] === "name";
     $("count").textContent = (i + 1) + " de " + TOTAL + " · " + KIND[day[i].k];
     $("placeName").textContent = isName && phase === "guess" ? ASK[day[i].k] : day[i].n;
-    $("hint").textContent = isName && phase === "guess" ? "Está marcado en el mapa. Muévete y acerca el zoom para orientarte." : day[i].h;
+    /* La descripción del lugar solo se muestra después de responder, para no dar pistas. */
+    var hint = phase === "reveal" ? day[i].h : isName ? "Está marcado en el mapa. Muévete y acerca el zoom para orientarte." : "";
+    $("hint").textContent = hint;
+    $("hint").hidden = !hint;
     var ob = $("opts");
     ob.hidden = !isName;
     if (isName) {
@@ -749,7 +806,8 @@ var MAPD = {"motorway":"M-7945 -6465l296 203 308 187 313 173 362 196 260 149 248
     } else {
       var r = result(guesses.length - 1);
       statusEl.innerHTML = '<span class="chip c' + r.g + '">+' + r.pts + '</span>' + (isName
-        ? (r.ok ? '<span>¡Correcto!</span>' : '<span>Era ' + esc(day[i].n) + '</span>')
+        ? (r.ok ? '<span>¡Correcto!</span>'
+          : '<span>Era ' + esc(day[i].n) + (wrongPick(i) ? '. Tu respuesta está a <span class="dtxt">' + fmt(apart(day[i], wrongPick(i))) + '</span>' : '') + '</span>')
         : r.d < 1
         ? '<span>¡Justo en el sitio!</span>'
         : '<span>A <span class="dtxt">' + fmt(r.d) + '</span> del lugar correcto</span>');
@@ -804,6 +862,8 @@ var MAPD = {"motorway":"M-7945 -6465l296 203 308 187 313 173 362 196 260 149 248
     guesses.push({ pick: opts[i][k] }); save();
     phase = "reveal";
     ui();
+    var wrong = wrongPick(i);
+    if (wrong) { measure(); showPlace(day[i], wrong); }
     try { act.focus({ preventScroll: true }); } catch (e) {}
   }
   act.addEventListener("click", function () { if (phase === "guess") confirmGuess(); else next(); });
