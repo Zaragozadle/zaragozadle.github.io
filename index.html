@@ -1,5 +1,7 @@
 <!doctype html><html lang="es"><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Zaragozadle</title>
+<!-- Estadísticas anónimas sin cookies (GoatCounter). No cuenta visitas desde localhost. -->
+<script data-goatcounter="https://zaragozadle.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -241,6 +243,7 @@ h2 { margin: 6px 0 2px; font-family: var(--display); font-weight: 400; font-size
     <p>Salen edificios, plazas, calles y parques. En una calle cuenta el punto más cercano de la calle, y en un parque vale con tocar dentro de él.</p>
     <p>Arrastra para mover el mapa. Pellizca, usa la rueda o los botones + y − para acercar. Con teclado: flechas para mover, + y − para el zoom, barra espaciadora para colocar la respuesta en el centro, Intro para confirmar y las teclas 1 a 8 para elegir una opción.</p>
     <p>El mapa muestra calles, ríos, parques y vías de tren reales de OpenStreetMap, sin nombres de calles, barrios ni ríos para no dar pistas.</p>
+    <p>Contamos las visitas de forma anónima con GoatCounter, sin cookies ni datos personales. Tu progreso solo se guarda en tu navegador.</p>
   </section>
 
   <section id="task">
@@ -783,6 +786,10 @@ var MAPD = {"motorway":"M-7945 -6465l296 203 308 187 313 173 362 196 260 149 248
     var d = locate(day[i], guesses[i]).d; return { d: d, pts: score(d), g: grade(d) };
   }
   function asking() { return phase === "guess" && mode[curIndex()] === "name"; }
+  /* Evento anónimo para las estadísticas (partida empezada, terminada, compartida). */
+  function track(name) {
+    try { if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: name, title: name, event: true }); } catch (e) {}
+  }
   function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"); }
 
   function ui() {
@@ -856,6 +863,7 @@ var MAPD = {"motorway":"M-7945 -6465l296 203 308 187 313 173 362 196 260 149 248
   function confirmGuess() {
     if (phase !== "guess" || asking() || !pending) return;
     guesses.push(pending); pending = null; save();
+    if (guesses.length === 1) track("partida-empezada");
     phase = "reveal";
     var i = guesses.length - 1;
     ui();
@@ -864,7 +872,7 @@ var MAPD = {"motorway":"M-7945 -6465l296 203 308 187 313 173 362 196 260 149 248
   }
   function next() {
     if (phase !== "reveal") return;
-    if (guesses.length >= TOTAL) { phase = "end"; ui(); return; }
+    if (guesses.length >= TOTAL) { phase = "end"; ui(); track("partida-terminada"); return; }
     phase = "guess"; pending = null; ui();
     measure(); frame();
   }
@@ -874,6 +882,7 @@ var MAPD = {"motorway":"M-7945 -6465l296 203 308 187 313 173 362 196 260 149 248
     var i = curIndex();
     if (!asking() || !opts[i][k]) return;
     guesses.push({ pick: opts[i][k] }); save();
+    if (guesses.length === 1) track("partida-empezada");
     phase = "reveal";
     ui();
     var wrong = wrongPick(i);
@@ -956,6 +965,7 @@ var MAPD = {"motorway":"M-7945 -6465l296 203 308 187 313 173 362 196 260 149 248
   });
   $("share").addEventListener("click", function () {
     var text = this.dataset.text || "", btn = this, box = $("shareBox");
+    track("resultado-compartido");
     function fallback() { box.hidden = false; box.value = text; box.focus(); box.select(); }
     try {
       navigator.clipboard.writeText(text).then(function () {
