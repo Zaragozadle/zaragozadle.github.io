@@ -1,5 +1,5 @@
 <!doctype html><html lang="es"><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Zaragodle</title>
+<title>Zaragozadle</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -79,7 +79,13 @@ button { font: inherit; color: inherit; }
 
 header { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .brand { min-width: 0; }
-h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 32px; line-height: 1; letter-spacing: .01em; }
+h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 32px; line-height: 1; letter-spacing: .01em; display: inline-grid; gap: 3px; }
+/* La silueta ocupa exactamente el ancho de la palabra (width 0 + min-width 100% para no ensanchar el título). */
+h1 .pilar {
+  display: block; width: 0; min-width: 100%; height: auto; aspect-ratio: 200 / 44;
+  fill: none; stroke: var(--accent); stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round;
+}
+h1 .pilar circle { fill: var(--tile-yellow); stroke: none; }
 .tag { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
 .meta { display: flex; align-items: center; gap: 10px; }
 .day { font-family: var(--mono); font-size: 12px; color: var(--muted); text-transform: capitalize; text-align: right; }
@@ -211,7 +217,15 @@ h2 { margin: 6px 0 2px; font-family: var(--display); font-weight: 400; font-size
 <div id="app">
   <header>
     <div class="brand">
-      <h1>Zaragodle</h1>
+      <h1>
+        <svg class="pilar" viewBox="0 0 200 44" aria-hidden="true" focusable="false">
+          <!-- Silueta de la Basílica del Pilar: cuatro torres, cúpula central y cúpulas laterales -->
+          <path d="M0 42H6V17H5V14H7V9H8V7L10.5 1.5L13 7V9H14V14H16V17H15V30H34A6 6 0 0 1 46 30H58A8 8 0 0 1 74 30H86V26H88A12 12 0 0 1 112 26H114V30H126A8 8 0 0 1 142 30H154A6 6 0 0 1 166 30H185V17H184V14H186V9H187V7L189.5 1.5L192 7V9H193V14H195V17H194V42H200"/>
+          <path d="M100 14V8M66 22V18.5M134 22V18.5M40 24V21.5M160 24V21.5M95 42V36A5 5 0 0 1 105 36V42"/>
+          <circle cx="100" cy="6.5" r="1.5"/>
+        </svg>
+        <span>Zaragozadle</span>
+      </h1>
       <p class="tag">¿Conoces Zaragoza? Diez lugares al día.</p>
     </div>
     <div class="meta">
@@ -830,7 +844,7 @@ var MAPD = {"motorway":"M-7945 -6465l296 203 308 187 313 173 362 196 260 149 248
     $("total").textContent = Math.round(pct * 1000);
     $("rank").textContent = pct >= 0.85 ? "Zaragozano de pro" : pct >= 0.6 ? "Vecino del barrio" : pct >= 0.35 ? "Turista atento" : "Recién llegado";
     $("results").innerHTML = html;
-    $("share").dataset.text = "Zaragodle #" + dayNo + "\n" + Math.round(pct * 1000) + "/1000\n" + sq;
+    $("share").dataset.text = "Zaragozadle #" + dayNo + "\n" + Math.round(pct * 1000) + "/1000\n" + sq;
   }
 
   function place(cx, cy) {
